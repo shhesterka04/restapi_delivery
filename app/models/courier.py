@@ -1,11 +1,11 @@
-from sqlalchemy import MetaData, Table, Column, Integer, Strin, ForeignKey, ARRAY
+from sqlalchemy import Column, Integer, String, ARRAY
+from app.core.database import Base
 
-metadata = MetaData()
 
-courier = Table(
-    Column("courier_id", Integer, primary_key=True),
-    Column("courier_type", String, nullable=False),
-    Column("regions", ARRAY(Integer), nullable=False),
-    Column("working_hours", String, nullable=False)
-)
 
+class Courier(Base):
+    __tablename__ = "couriers"
+    courier_id = Column(Integer, primary_key=True)
+    courier_type = Column(String, nullable=False)
+    regions = Column(ARRAY(Integer), nullable=False)
+    working_hours = Column(String, nullable=False)
