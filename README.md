@@ -1,92 +1,235 @@
-# Шаблон для решения вступительного задания Python
+# ШБР Лето 2023. Вступительное задание
+
+Вы устроились в Яндекс, и вам нужно запустить сервис Яндекс Лавка.
+Ваша первая задача — разработать новый REST API-сервис, который будет регистрировать курьеров, добавлять новые заказы и 
+распределять их по курьерам.
+
+## Требования к сервису
+
+В сервисе должны быть реализованы:
+
+1) REST API сервиса — подробнее в Задании 1;
+2) расчет рейтинга курьеров — подробнее в Задании 2;
+3) rate limiter для сервиса — подробнее в Задании 3;
+4) алгоритм распределения заказов по курьерам — подробнее в Задании 4.
+
+## Правила оценки работы
+
+Задание 1 обязательно для оценки продуктовой задачи — если вы не выполните это задание, ваша работа будет считаться 
+невыполненной и не будет проверяться.
+Задания 2, 3 и 4 могут быть выполнены независимо и в любых вариациях — чем больше дополнительных заданий вы выполните, 
+тем лучше может быть ваш результат.
 
 
+## Задание 1. REST API
 
-## Getting started
+В качестве базовой функциональности сервиса необходимо реализовать 7 базовых методов.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+Для всех методов в случае корректного ответа ожидается ответ `HTTP 200 OK`.
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+### POST /couriers
+Для загрузки списка курьеров в систему запланирован описанный ниже интерфейс.
 
-## Add your files
+Обработчик принимает на вход список в формате json с данными о курьерах и графиком их работы.
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+Курьеры работают только в заранее определенных районах, а также различаются по типу: пеший, велокурьер и 
+курьер на автомобиле. От типа зависит объем заказов, которые перевозит курьер.
+Районы задаются целыми положительными числами. График работы задается списком строк формата `HH:MM-HH:MM`.
 
-```
-cd existing_repo
-git remote add origin https://git.yandex-academy.ru/school/2023-06/enrollment/enrollment-template-python.git
-git branch -M master
-git push -uf origin master
-```
+### GET /couriers/{courier_id}
 
-## Integrate with your tools
+Возвращает информацию о курьере.
 
-- [ ] [Set up project integrations](https://git.yandex-academy.ru/school/2023-06/enrollment/enrollment-template-python/-/settings/integrations)
+### GET /couriers
 
-## Collaborate with your team
+Возвращает информацию о всех курьерах.
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+У метода есть параметры `offset` и `limit`, чтобы обеспечить постраничную выдачу.
+Если:
+* `offset` или `limit` не передаются, по умолчанию нужно считать, что `offset = 0`, `limit = 1`;
+* офферов по заданным `offset` и `limit` не найдено, нужно возвращать пустой список `couriers`.
 
-## Test and Deploy
+### POST /orders
 
-Use the built-in continuous integration in GitLab.
+Принимает на вход список с данными о заказах в формате json. У заказа отображаются характеристики — вес, район, 
+время доставки и цена.
+Время доставки - строка в формате HH:MM-HH:MM, где HH - часы (от 0 до 23) и MM - минуты (от 0 до 59). Примеры: “09:00-11:00”, “12:00-23:00”, “00:00-23:59”.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
 
-***
+### GET /orders/{order_id}
 
-# Editing this README
+Возвращает информацию о заказе по его идентификатору, а также дополнительную информацию: вес заказа, район доставки, 
+промежутки времени, в которые удобно принять заказ.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### GET /orders
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+Возвращает информацию о всех заказах, а также их дополнительную информацию: вес заказа, район доставки, промежутки времени, в которые удобно принять заказ.
 
-## Name
-Choose a self-explaining name for your project.
+У метода есть параметры `offset` и `limit`, чтобы обеспечить постраничную выдачу.
+Если:
+* `offset` или `limit` не передаются, по умолчанию нужно считать, что `offset = 0`, `limit = 1`;
+* офферов по заданным `offset` и `limit` не найдено, нужно возвращать пустой список `orders`.
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+### POST /orders/complete
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Принимает массив объектов, состоящий из трех полей: id курьера, id заказа и время выполнения заказа, после отмечает, что заказ выполнен.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+Если заказ:
+* не найден, был назначен на другого курьера или не назначен совсем — следует вернуть ошибку `HTTP 400 Bad Request`.
+* выполнен успешно — следует выводить `HTTP 200 OK` и идентификатор завершенного заказа.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+Обработчик должен быть идемпотентным.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+## Задание 2. Рейтинг курьеров
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+Команда сервиса решила начать учет заработной платы и рейтинго курьеров.
+Для этого необходимо реализовать новый метод `GET /couriers/meta-info/{courier_id}`.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+Параметры метода:
+* `start_date` - дата начала отсчета рейтинга
+* `end_date` - дата конца отсчета рейтинга.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+Примером значения параметров может быть `2023-01-20`. В задании можно полагаться на то, что все заказы и даты для 
+расчетов имеют одну и ту же фиксированную временную зону - UTC.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+Метод должен возвращать заработанные курьером деньги за заказы и его рейтинг.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+**Заработок рассчитывается по формуле:**
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+Заработок рассчитывается как сумма оплаты за каждый завершенный развоз в период с `start_date` (включая) до 
+`end_date` (исключая):
 
-## License
-For open source projects, say how it is licensed.
+`sum = ∑(cost * C)`
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+`C`  — коэффициент, зависящий от типа курьера:
+* пеший — 2
+* велокурьер — 3
+* авто — 4
+
+Если курьер не завершил ни одного развоза, то рассчитывать и возвращать заработок не нужно.
+
+**Рейтинг рассчитывается по формуле:**
+
+Рейтинг рассчитывается следующим образом:
+((число всех выполненных заказов с `start_date` по `end_date`) / (Количество часов между `start_date` и `end_date`)) * C
+C - коэффициент, зависящий от типа курьера:
+* пеший = 3
+* велокурьер = 2
+* авто - 1
+
+Если курьер не завершил ни одного развоза, то рассчитывать и возвращать рейтинг не нужно.
+
+## Задание 3. Rate limiter
+
+Каждый большой сервис с API, открытым из интернета, должен ограничивать количество входящих запросов.
+Для этого используется rate limiter. Вам нужно реализовать такое решение для разрабатываемого сервиса.
+
+Для решения задачи можно написать собственную реализацию или использовать известное готовое решение.
+Сервис должен ограничивать нагрузку в 10 RPS на каждый эндпоинт. Если допустимое количество запросов превышено, сервис должен отвечать кодом 429.
+
+## Задание 4. Распределение заказов
+
+Сейчас сервис Яндекс Лавка для каждого курьера выбирает один заказ.
+Это приводит к том, что курьер может быть не загружен или будет доставлять заказ по удаленному адресу.
+Перед началом рабочей смены сервис распределяет заказы между курьерами для минимизации стоимости доставки.
+
+Для этого нам понадобятся реализовать:
+* метод распределения заказов `POST /orders/assign`. В общем виде он будет выглядеть так: перед началом рабочего дня 
+берем список заказов и распределяем их по доступным курьерам
+* метод получения уже распределенных заказов `GET /couriers/assignments`
+
+Для распределения заказов между курьерами учитываются следующие параметры:
+* вес заказа
+* регион доставки
+* стоимость доставки
+
+**Вес заказов**
+
+У каждой из категорий курьеров есть ограничение по весу перевозимого заказа и количества заказов.
+
+| Тип курьера | Максимальный вес | Максимальное количество |
+|---|---|---|
+| пеший | 10 | 2 |
+| велокурьер | 20 | 4 |
+| авто | 40 | 7 |
+
+**Регион доставки**
+
+Тип используемого транспорта влияет на количество регионов, которые может посетить курьер при доставке заказов.
+
+| Тип курьера | Количество регионов | Комментарий |
+|---|---|---|
+| пеший | 1 | Доставка осуществляется только в одном регионе |
+| велокурьер | 2 | Доставка будет в двух регионах |
+| авто | 3 | Можно выбрать 3 региона |
+
+**Время доставки**
+
+Время доставки складывается из посещения всех точек для вручения заказа в регионе и времени ожидания для вручения заказа.
+
+Время посещения всех точек в одном регионе:
+
+| Тип курьера | 1й заказ | Следующие заказы |
+|---|---|---|
+| пеший | 25 | 10 |
+| велокурьер | 12 | 8 |
+| авто | 8 | 4 |
+
+При доставке товара в другом регионе, время рассчитывается также:
+
+| Тип курьера | 1й заказ | Следующие заказы |
+|---|---|---|
+| велокурьер | 12 | 8 |
+| авто | 8 | 4 |
+
+Время доставки ограничено рабочим интервалов. Например, если курьер работает с 10-00 до 12-00 без использования 
+транспорта, он может доставить 4 заказа без объединения:
+
+| Время | Номер заказа |
+|---|---|
+| 10:25 | 1 |
+| 10:50 | 2 |
+| 11:15 | 3 |
+| 11:40 | 4 |
+
+И с объединением заказов, получится доставить больше заказов за то же время:
+
+| Время | Номер заказа |
+|---|---|
+| 10:00 | [1, 2] |
+| 10:35 | [3, 4] |
+| 11:10 | [5, 6] |
+| 11:45 | [7, 8] |
+
+**Стоимость доставки**
+
+Стоимость доставки при группировке заказов, расчитывается следующим образом:
+
+| Тип курьера | 1й заказ | Следующие заказы |
+|---|---|---|
+| пеший | 100% | 80% |
+| велокурьер | 100% | 80% |
+| авто | 100% | 80% |
+
+## Приложение. Как выполнить задание?
+
+1. Сгенерировать ssh-ключ
+2. Перейти в [профиль](https://school.yandex.ru/profile/)
+3. Нажать кнопку "Редактировать профиль"
+4. Ввести Публичный ключ и нажать кнопку "Сохранить"
+5. Вернуться в задачу в LMS, в комментариях появятся ссылки на 2 репозитория:
+    * с тестовым заданием
+    * с шаблоном решения
+
+6. Выполнить `git clone` репозитория с текстом задания, в нем можно найти более подробные инструкции по выполнению
+7. Выполнить `git clone` репозитория с шаблоном решения.
+В данном репозитории нужно выполнить задание, сделать `git commit` и отправить результат на сервер `git push`.
+После того, как выполнен git push, нужно вернуться в LMS на страницу с заданием и нажать кнопку **Отправить ответ**.
+Обязательно напишите любой текст в поле ответа (например, "ОК"), иначе кнопка отправки будет недоступна.
+
+## Приложение. Требования к решению.
+
+1. Решение должно быть представлено в виде Dockerfile в котором происходит сборка, настройка и запуск решения;
+2. Сервис должен обрабатывать входящие запросы на порту 8080;
+3. На порту 5432 будет доступна БД PostgreSQL 15.2. Авторизация происходит по логину и паролю: user=postgres password=password;
+4. В Dockerfile в репозитории с решением базовый образ строго зафиксирован. Изменять образ в директиве FROM нельзя. При этом можно добавлять в контейнер необходимые пакеты если это требуется.
