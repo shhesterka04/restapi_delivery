@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+pytest
+pytest-asyncio
+starlette
+flake8
+requests
+httpx
