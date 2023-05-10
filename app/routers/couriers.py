@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, Body, HTTPException, Query
+from fastapi import APIRouter, Depends, Body, HTTPException
 from starlette import status
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_session
 from sqlalchemy import insert, select, and_, cast, DateTime
 
+from app.schemas.order import OrderAssignments
 from app.schemas.courier import Courier as SchemasCourier
 from app.models.courier import Courier as ModelCourier
 from app.models.order import Order as ModelOrder
@@ -119,4 +120,16 @@ async def get_meta_couriers_info(courier_id: int, start_date:str, end_date: str,
     rating = (len(orders) / total_hours) * rating_coefficient
 
     return {"earnings": earnings, "rating": rating}
-    
+
+@couriers_router.get(
+    "/assignments",
+    name='assignments_couriers',
+    status_code=status.HTTP_200_OK
+)
+async def get_assignments_couriers(session: AsyncSession=Depends(get_async_session)):
+    orders_with_courier = await session.execute(select(ModelOrder).where(ModelOrder.courier_id != None))
+    orders_with_courier = orders_with_courier.scalars().all()
+
+    assignments = [OrderAssignments(order_id=order.id, courier_id=order.courier_id) for order in orders_with_courier]
+
+    return assignments

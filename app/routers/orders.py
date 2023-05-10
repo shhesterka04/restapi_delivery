@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, Body, HTTPException
 from starlette import status
-from typing import List
+from typing import List, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_session
 from sqlalchemy import insert, select, update, case
 
-from app.schemas.order import Order as SchemasOrder
+from app.schemas.order import Order as SchemasOrder, OrderAssignments
 from app.schemas.order import OrderComplete
 from app.models.order import Order as ModelOrder
+from app.models.courier import Courier as ModelCourier
 from .utils import model_to_dict
 
 
@@ -111,3 +112,69 @@ async def post_orders_complete(complete_orders_data: List[OrderComplete] = Body(
 
     return ans
         
+@orders_router.post(
+    "/assign",
+    name='orders_assign',
+    status_code=status.HTTP_200_OK
+)
+async def post_assign_orders(session: AsyncSession=Depends(get_async_session)):
+    orders = await session.execute(select(ModelOrder).where(ModelOrder.courier_id == None))
+    orders = orders.scalars().all()
+
+    couriers = await session.execute(select(ModelCourier))
+    couriers = couriers.scalars().all()
+
+    #order_assignments = distribute_orders(orders, couriers)
+
+    for assignment in order_assignments:
+        order = await session.get(ModelOrder, assignment.order_id)
+        order.courier_id = assignment.courier_id
+
+    await session.commit()
+
+    return {"assignments": order_assignments}
+
+# def can_assign_order(courier: ModelCourier, order: ModelOrder, assigned_orders: OrderAssignments) -> bool:
+#     courier_type_limits = {
+#         "FOOT": {"max_weight": 10, "max_orders": 2, "max_regions": 1},
+#         "BIKE": {"max_weight": 20, "max_orders": 4, "max_regions": 2},
+#         "AUTO": {"max_weight": 40, "max_orders": 7, "max_regions": 3},
+#     }
+
+#     courier_limits = courier_type_limits[courier.courier_type]
+#     current_orders = assigned_orders.get(courier.courier_id, [])
+
+#     current_weight = sum(o.weight for o in current_orders)
+#     if current_weight + order.weight > courier_limits["max_weight"]:
+#         return False
+
+#     if len(current_orders) >= courier_limits["max_orders"]:
+#         return False
+
+#     current_regions = set(o.region for o in current_orders)
+#     if len(current_regions) >= courier_limits["max_regions"] and order.region not in current_regions:
+#         return False
+
+#     return True
+
+# def distribute_orders(orders: List[ModelOrder], couriers: List[ModelCourier]) -> List[OrderAssignments]:
+#     order_assignments = []
+#     assigned_orders: Dict[int, List[ModelOrder]] = {}
+
+#     for courier in couriers:
+#         for order in orders:
+#             if order.courier_id is None and can_assign_order(courier, order, assigned_orders):
+#                 current_orders = assigned_orders.get(courier.courier_id, [])
+#                 cost = order.costs * (1 if len(current_orders) == 0 else 0.8)
+
+#                 order_assignments.append(OrderAssignments(order_id=order.order_id, courier_id=courier.courier_id))
+#                 order.courier_id = courier.courier_id
+
+#                 if courier.courier_id not in assigned_orders:
+#                     assigned_orders[courier.courier_id] = []
+
+#                 assigned_orders[courier.courier_id].append(order)
+
+#     return order_assignments
+
+

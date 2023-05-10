@@ -1,7 +1,7 @@
 import re
 from pydantic import BaseModel, Field, validator
 from dateutil.parser import isoparse
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -49,3 +49,7 @@ class OrderComplete(BaseModel):
             print(f"Invalid value: {value}")
             raise ValueError("Invalid ISO 8601 format")
         return dt
+
+class OrderAssignments(BaseModel):
+    order_id: List(int)
+    courier_id: int
