@@ -1,7 +1,8 @@
 import re
 from pydantic import BaseModel, Field, validator
 from enum import Enum
-from typing import List
+from typing import List, Optional
+
 
 class CourierType(str, Enum):
     foot = "FOOT"

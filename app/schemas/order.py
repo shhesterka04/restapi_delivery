@@ -2,10 +2,12 @@ import re
 from pydantic import BaseModel, Field, validator
 from dateutil.parser import isoparse
 from typing import Optional
+from datetime import datetime
+
 
 class Order(BaseModel):
-    weight : float = Field(ge=0) #ой как нехорошо...
-    regions : int = Field(ge=0)
+    weight: float = Field(ge=0)
+    regions: int = Field(ge=0)
     delivery_hours: str = Field(length=11)
 
     @validator("delivery_hours")
@@ -15,18 +17,22 @@ class Order(BaseModel):
             raise ValueError("Invalid time range format. Expected format: 'HH:MM-HH:MM'")
         return delivery_hours
 
-    costs : int = Field(ge=1)
-    completed_time : Optional[str] = None
+    costs: int = Field(ge=1)
+    completed_time: Optional[datetime] = None
 
-    @validator("completed_time")
-    def check_time_completed_format(cls, value: str) -> str:
-        try:
-            isoparse(value)
-        except (ValueError, TypeError):
-            raise ValueError("Invalid ISO 8601 format")
-        return value
+    @validator("completed_time", pre=True)
+    def check_time_completed_format(cls, value: Optional[str]) -> Optional[datetime]:
+        if value:
+            try:
+                print(f"Parsed datetime: {isoparse(value)}")
+                return isoparse(value)
+            except (ValueError, TypeError):
+                print(f"Invalid value: {value}")
+                raise ValueError("Invalid ISO 8601 format")
+        return None
 
-    courier_id : Optional[int] = Field(ge=1)
+    courier_id: Optional[int] = Field(ge=1)
+
 
 
 class OrderComplete(BaseModel):
@@ -35,9 +41,11 @@ class OrderComplete(BaseModel):
     completed_time : str
 
     @validator("completed_time")
-    def check_time_completed_format(cls, value: str) -> str:
+    def check_time_completed_format(cls, value: str) -> datetime:
         try:
-            isoparse(value)
+            dt = isoparse(value)
+            print(f"Parsed datetime: {dt}")
         except (ValueError, TypeError):
+            print(f"Invalid value: {value}")
             raise ValueError("Invalid ISO 8601 format")
-        return value
+        return dt
