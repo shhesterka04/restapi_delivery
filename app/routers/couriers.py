@@ -42,6 +42,17 @@ async def post_couriers(couriers_data: List[SchemasCourier] = Body(...), session
 
     return couriers
 
+@couriers_router.get(
+    "/assignments",
+    name='assignments_couriers',
+    status_code=status.HTTP_200_OK
+)
+async def get_assignments_couriers(session: AsyncSession=Depends(get_async_session)):
+    orders_with_courier = await session.execute(select(ModelOrder).where(ModelOrder.courier_id != None))
+    orders_with_courier = orders_with_courier.scalars().all()
+
+    assignments = [order for order in orders_with_courier]
+    return assignments
 
 @couriers_router.get(
     "/{courier_id}",
@@ -121,15 +132,3 @@ async def get_meta_couriers_info(courier_id: int, start_date:str, end_date: str,
 
     return {"earnings": earnings, "rating": rating}
 
-@couriers_router.get(
-    "/assignments",
-    name='assignments_couriers',
-    status_code=status.HTTP_200_OK
-)
-async def get_assignments_couriers(session: AsyncSession=Depends(get_async_session)):
-    orders_with_courier = await session.execute(select(ModelOrder).where(ModelOrder.courier_id != None))
-    orders_with_courier = orders_with_courier.scalars().all()
-
-    assignments = [OrderAssignments(order_id=order.id, courier_id=order.courier_id) for order in orders_with_courier]
-
-    return assignments

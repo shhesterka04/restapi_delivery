@@ -50,6 +50,12 @@ class OrderComplete(BaseModel):
             raise ValueError("Invalid ISO 8601 format")
         return dt
 
-class OrderAssignments(BaseModel):
-    order_id: List(int)
-    courier_id: int
+class CourierTrip():
+    def __init__(self, courier_id:int, orders_costs:List[List[int]] = []):
+        self.courier_id = courier_id
+        self.orders_costs = orders_costs
+
+class OrderAssignments():
+    def __init__(self, courier_id:int, trips:List[CourierTrip] = []):
+        self.courier_id = courier_id
+        self.trips = trips

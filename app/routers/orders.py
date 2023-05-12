@@ -3,13 +3,14 @@ from starlette import status
 from typing import List, Dict
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_session
-from sqlalchemy import insert, select, update, case
+from sqlalchemy import insert, select, update, case, and_
 
-from app.schemas.order import Order as SchemasOrder, OrderAssignments
+from app.schemas.order import Order as SchemasOrder, OrderAssignments, CourierTrip
 from app.schemas.order import OrderComplete
 from app.models.order import Order as ModelOrder
 from app.models.courier import Courier as ModelCourier
-from .utils import model_to_dict
+from .utils import model_to_dict, parse_interval_time
+from datetime import timedelta
 
 
 orders_router = APIRouter(
@@ -112,69 +113,106 @@ async def post_orders_complete(complete_orders_data: List[OrderComplete] = Body(
 
     return ans
         
+
 @orders_router.post(
     "/assign",
     name='orders_assign',
     status_code=status.HTTP_200_OK
 )
 async def post_assign_orders(session: AsyncSession=Depends(get_async_session)):
-    orders = await session.execute(select(ModelOrder).where(ModelOrder.courier_id == None))
+    orders = await session.execute(select(ModelOrder).where(and_(ModelOrder.courier_id == None, ModelOrder.completed_time == None)))
     orders = orders.scalars().all()
 
-    couriers = await session.execute(select(ModelCourier))
+    couriers = await session.execute(select(ModelCourier).order_by(ModelCourier.courier_type))
     couriers = couriers.scalars().all()
 
-    #order_assignments = distribute_orders(orders, couriers)
+    order_assignments = distribute_orders(orders, couriers)
 
-    for assignment in order_assignments:
-        order = await session.get(ModelOrder, assignment.order_id)
-        order.courier_id = assignment.courier_id
+    for courier_id, assignment in order_assignments.items():
+        for trip in assignment.trips:
+            for order_cost in trip.orders_costs:
+                order_id = order_cost[0]
+                cost = order_cost[1]
+                stmt = (
+                    update(ModelOrder)
+                    .where(ModelOrder.order_id == order_id)
+                    .values(courier_id=courier_id, costs=cost)
+                )
+
+                await session.execute(stmt)
 
     await session.commit()
 
     return {"assignments": order_assignments}
 
-# def can_assign_order(courier: ModelCourier, order: ModelOrder, assigned_orders: OrderAssignments) -> bool:
-#     courier_type_limits = {
-#         "FOOT": {"max_weight": 10, "max_orders": 2, "max_regions": 1},
-#         "BIKE": {"max_weight": 20, "max_orders": 4, "max_regions": 2},
-#         "AUTO": {"max_weight": 40, "max_orders": 7, "max_regions": 3},
-#     }
+def can_assign_order(courier: ModelCourier, order: ModelOrder, assigned_orders: OrderAssignments) -> bool:
+    courier_type_limits = {
+        "FOOT": {"max_weight": 10, "max_orders": 2, "max_regions": 1, "first_delivery_time": 25, "next_delivery_time": 10},
+        "BIKE": {"max_weight": 20, "max_orders": 4, "max_regions": 2, "first_delivery_time": 12, "next_delivery_time": 8},
+        "AUTO": {"max_weight": 40, "max_orders": 7, "max_regions": 3, "first_delivery_time": 8, "next_delivery_time": 4},
+    }
 
-#     courier_limits = courier_type_limits[courier.courier_type]
-#     current_orders = assigned_orders.get(courier.courier_id, [])
+    courier_limits = courier_type_limits[courier.courier_type]
+    current_orders = assigned_orders.get(courier.courier_id, [])
 
-#     current_weight = sum(o.weight for o in current_orders)
-#     if current_weight + order.weight > courier_limits["max_weight"]:
-#         return False
+    current_weight = sum(o.weight for o in current_orders)
+    if current_weight + float(order.weight) > courier_limits["max_weight"]:
+        return False
 
-#     if len(current_orders) >= courier_limits["max_orders"]:
-#         return False
+    if len(current_orders) >= courier_limits["max_orders"]:
+        return False
 
-#     current_regions = set(o.region for o in current_orders)
-#     if len(current_regions) >= courier_limits["max_regions"] and order.region not in current_regions:
-#         return False
+    # Не совсем понятно условие - регионы определяются заранее или их также нужно распределять?
+    # Из условия первого задания считаю, что регионы заранее распределны, причем с учетом ограничений типов курьера
+    if order.regions not in courier.regions:
+        return False
 
-#     return True
+    return True
 
-# def distribute_orders(orders: List[ModelOrder], couriers: List[ModelCourier]) -> List[OrderAssignments]:
-#     order_assignments = []
-#     assigned_orders: Dict[int, List[ModelOrder]] = {}
+def distribute_orders(orders: List[ModelOrder], couriers: List[ModelCourier]) -> List[OrderAssignments]:
+    couriers_type_limits = {
+        "FOOT": {"max_orders": 2, "first_delivery_time": 25, "next_delivery_time": 10},
+        "BIKE": {"max_orders": 4, "first_delivery_time": 12, "next_delivery_time": 8},
+        "AUTO": {"max_orders": 7, "first_delivery_time": 8, "next_delivery_time": 4},
+    }
 
-#     for courier in couriers:
-#         for order in orders:
-#             if order.courier_id is None and can_assign_order(courier, order, assigned_orders):
-#                 current_orders = assigned_orders.get(courier.courier_id, [])
-#                 cost = order.costs * (1 if len(current_orders) == 0 else 0.8)
+    orders.sort(key=lambda o: parse_interval_time(o.delivery_hours)[1])
 
-#                 order_assignments.append(OrderAssignments(order_id=order.order_id, courier_id=courier.courier_id))
-#                 order.courier_id = courier.courier_id
+    assignments = {}
 
-#                 if courier.courier_id not in assigned_orders:
-#                     assigned_orders[courier.courier_id] = []
+    for courier in couriers:
+        courier_type_limits = couriers_type_limits[courier.courier_type]
+        next_available_time, working_hours_end = parse_interval_time(courier.working_hours)
 
-#                 assigned_orders[courier.courier_id].append(order)
+        trips = []
+        trip = []
+        for order in orders:
+            if not can_assign_order(courier, order, assignments):
+                continue
 
-#     return order_assignments
+            order_start, order_end = parse_interval_time(order.delivery_hours)
+
+            if len(trip) == 0:  # first order
+                next_available_time = max(order_start, next_available_time) + timedelta(minutes=courier_type_limits["first_delivery_time"])
+            else:
+                next_available_time += timedelta(minutes=courier_type_limits["next_delivery_time"])
+                order.costs *= 0.8 
+
+            if next_available_time <= min(order_end, working_hours_end):
+                trip.append([order.order_id, order.costs])
+                orders.remove(order)
+
+                if len(trip) >= courier_type_limits["max_orders"]:
+                    trips.append(CourierTrip(courier.courier_id, trip))
+                    trip = []
+
+        if trip:  # add remaining orders
+            trips.append(CourierTrip(courier.courier_id, trip))
+
+        assignments[courier.courier_id] = OrderAssignments(courier.courier_id, trips)
+
+    return assignments
+
+
 
 
