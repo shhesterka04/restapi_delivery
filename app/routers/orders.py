@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, Body, HTTPException
 from starlette import status
-from typing import List, Dict
+from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_async_session
 from sqlalchemy import insert, select, update, case, and_

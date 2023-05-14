@@ -12,7 +12,6 @@ from app.models.order import Order as ModelOrder
 from .utils import model_to_dict
 from datetime import datetime
 
-
 couriers_router = APIRouter(
     prefix="/couriers",
     tags=["Couriers"]
@@ -25,13 +24,14 @@ couriers_router = APIRouter(
     status_code=status.HTTP_200_OK,
     response_model=List[SchemasCourier]
 )
-async def post_couriers(couriers_data: List[SchemasCourier] = Body(...), session: AsyncSession=Depends(get_async_session)):
+async def post_couriers(couriers_data: List[SchemasCourier] = Body(...),
+                        session: AsyncSession = Depends(get_async_session)):
     couriers = []
 
     for person in couriers_data:
         courier_data = {
             'courier_type': person.courier_type,
-            'regions': person.regions, 
+            'regions': person.regions,
             'working_hours': person.working_hours
         }
         couriers.append(courier_data)
@@ -42,29 +42,31 @@ async def post_couriers(couriers_data: List[SchemasCourier] = Body(...), session
 
     return couriers
 
+
 @couriers_router.get(
     "/assignments",
     name='assignments_couriers',
     status_code=status.HTTP_200_OK
 )
-async def get_assignments_couriers(session: AsyncSession=Depends(get_async_session)):
+async def get_assignments_couriers(session: AsyncSession = Depends(get_async_session)):
     orders_with_courier = await session.execute(select(ModelOrder).where(ModelOrder.courier_id != None))
     orders_with_courier = orders_with_courier.scalars().all()
 
     assignments = [order for order in orders_with_courier]
     return assignments
 
+
 @couriers_router.get(
     "/{courier_id}",
     name='courier_info',
     status_code=status.HTTP_200_OK
 )
-async def get_courier_info(courier_id:int, session: AsyncSession=Depends(get_async_session)):
+async def get_courier_info(courier_id: int, session: AsyncSession = Depends(get_async_session)):
     query = select(ModelCourier).where(ModelCourier.courier_id == courier_id)
     result = await session.execute(query)
     courier = result.scalar()
     await session.commit()
-    
+
     if courier is None:
         raise HTTPException(status_code=404, detail="Courier not found")
     else:
@@ -76,7 +78,7 @@ async def get_courier_info(courier_id:int, session: AsyncSession=Depends(get_asy
     name='all_couriers_info',
     status_code=status.HTTP_200_OK
 )
-async def get_all_couriers_info(offset:int=0, limit:int=1, session: AsyncSession=Depends(get_async_session)):
+async def get_all_couriers_info(offset: int = 0, limit: int = 1, session: AsyncSession = Depends(get_async_session)):
     query = select(ModelCourier).offset(offset).limit(limit)
     result = await session.execute(query)
     couriers = result.scalars().all()
@@ -91,7 +93,8 @@ async def get_all_couriers_info(offset:int=0, limit:int=1, session: AsyncSession
     name='metainfo_courier_info',
     status_code=status.HTTP_200_OK
 )
-async def get_meta_couriers_info(courier_id: int, start_date:str, end_date: str, session: AsyncSession=Depends(get_async_session)):
+async def get_meta_couriers_info(courier_id: int, start_date: str, end_date: str,
+                                 session: AsyncSession = Depends(get_async_session)):
     try:
         start_date = datetime.strptime(start_date, "%Y-%m-%d")
         end_date = datetime.strptime(end_date, "%Y-%m-%d")
@@ -131,4 +134,3 @@ async def get_meta_couriers_info(courier_id: int, start_date:str, end_date: str,
     rating = (len(orders) / total_hours) * rating_coefficient
 
     return {"earnings": earnings, "rating": rating}
-

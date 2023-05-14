@@ -6,13 +6,18 @@ RUN /app/bin/pip install -U pip
 COPY requirements.txt /mnt/
 RUN /app/bin/pip install -Ur /mnt/requirements.txt
 
-FROM python:3.10-alpine3.17 as app
+FROM python:3.10-alpine3.17 as builder
 
 WORKDIR /app
 
-COPY --from=builder /app /app
-COPY . .
+COPY . /app
+
+COPY requirements.txt /app/
+RUN pip install --no-cache-dir -r requirements.txt
 
 EXPOSE 8000
 
-CMD /app/bin/uvicorn app.main:app --host=0.0.0.0 --port=8080
+COPY run_migrations.sh /app/
+RUN chmod +x /app/run_migrations.sh
+
+CMD ["/app/run_migrations.sh"]
